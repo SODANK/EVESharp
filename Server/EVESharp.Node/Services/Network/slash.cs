@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using EVESharp.Database.Account;
@@ -22,6 +22,7 @@ using EVESharp.EVE.Notifications.Inventory;
 using EVESharp.EVE.Notifications.Skills;
 using EVESharp.EVE.Sessions;
 using EVESharp.Types;
+using EVESharp.Types.Collections;
 using Serilog;
 using Type = EVESharp.Database.Inventory.Types.Type;
 
@@ -43,29 +44,41 @@ public class slash : Service
     private         IWallets            Wallets            { get; }
     private         IDogmaNotifications DogmaNotifications { get; }
     private         IDogmaItems         DogmaItems         { get; }
+    private         ISessionManager     SessionManager     { get; }
 
-    public slash
-    (
-        ILogger             logger, IItems items, OldCharacterDB characterDB, INotificationSender notificationSender, IWallets wallets,
-        IDogmaNotifications dogmaNotifications, IDogmaItems dogmaItems, SkillDB skillDB
-    )
-    {
-        Log                     = logger;
-        this.Items              = items;
-        CharacterDB             = characterDB;
-        Notifications           = notificationSender;
-        this.Wallets            = wallets;
-        this.DogmaNotifications = dogmaNotifications;
-        this.DogmaItems         = dogmaItems;
-        this.SkillDB            = skillDB;
 
-        // register commands
-        this.mCommands ["create"]     = this.CreateCmd;
-        this.mCommands ["createitem"] = this.CreateCmd;
-        this.mCommands ["giveskills"] = this.GiveSkillCmd;
-        this.mCommands ["giveskill"]  = this.GiveSkillCmd;
-        this.mCommands ["giveisk"]    = this.GiveIskCmd;
-    }
+public slash
+(
+    ILogger             logger,
+    IItems              items,
+    OldCharacterDB      characterDB,
+    INotificationSender notificationSender,
+    IWallets            wallets,
+    IDogmaNotifications dogmaNotifications,
+    IDogmaItems         dogmaItems,
+    SkillDB             skillDB,
+    ISessionManager     sessionManager
+)
+{
+    Log                     = logger;
+    this.Items              = items;
+    CharacterDB             = characterDB;
+    Notifications           = notificationSender;
+    this.Wallets            = wallets;
+    this.DogmaNotifications = dogmaNotifications;
+    this.DogmaItems         = dogmaItems;
+    this.SkillDB            = skillDB;
+    this.SessionManager     = sessionManager;
+
+    // register commands
+    this.mCommands["create"]     = this.CreateCmd;
+    this.mCommands["createitem"] = this.CreateCmd;
+    this.mCommands["giveskills"] = this.GiveSkillCmd;
+    this.mCommands["giveskill"]  = this.GiveSkillCmd;
+    this.mCommands["giveisk"]    = this.GiveIskCmd;
+    this.mCommands["move"]       = this.MoveCmd;
+}
+
 
     private string GetCommandListForClient ()
     {
@@ -148,6 +161,81 @@ public class slash : Service
             }
         }
     }
+
+private void MoveCmd(string[] argv, ServiceCall call)
+{
+    int targetCharacterID = call.Session.CharacterID;
+    int stationID;
+
+    // Parse args: /move <stationID> or /move <charID> <stationID>
+    if (argv.Length == 2)
+    {
+        int.TryParse(argv[1], out stationID);
+    }
+    else if (argv.Length == 3)
+    {
+        int.TryParse(argv[1], out targetCharacterID);
+        int.TryParse(argv[2], out stationID);
+    }
+    else
+        throw new SlashError("Usage: /move <stationID> or /move <characterID> <stationID>");
+
+    // Find target session (must be online)
+    Session targetSession =
+        (targetCharacterID == call.Session.CharacterID)
+        ? call.Session
+        : this.SessionManager.FindSession("charid", targetCharacterID).FirstOrDefault();
+
+    if (targetSession == null)
+        throw new SlashError("Target character is not online.");
+
+    targetSession.EnsureCharacterIsInStation();
+
+    // Lookup station
+    Station target = this.Items.GetStaticStation(stationID);
+
+    // Store location change in DB
+    this.CharacterDB.UpdateStationAndLocation(
+        targetCharacterID,
+        target.ID,
+        target.SolarSystemID,
+        target.ConstellationID,
+        target.RegionID
+    );
+
+    // Move active ship to new hangar
+    var shipID = targetSession.ShipID;
+    if (shipID.HasValue && shipID.Value > 0)
+    {
+        var ship = this.Items.GetItem<ItemEntity>(shipID.Value);
+        if (ship != null)
+        {
+            ship.LocationID = target.ID;
+            ship.Flag = Flags.Hangar;
+            ship.Persist();
+        }
+    }
+
+    // CREATE A NEW SESSION CLONE
+    Session newSession = Session.FromPyDictionary(targetSession);
+
+    // Update the clone's state — NOT the live session
+    newSession.StationID       = target.ID;
+    newSession.LocationID      = target.ID;
+    newSession.SolarSystemID2  = target.SolarSystemID;
+    newSession.ConstellationID = target.ConstellationID;
+    newSession.RegionID        = target.RegionID;
+
+    // Perform REAL session change (this triggers correct client notifications)
+    this.SessionManager.PerformSessionUpdate(
+        "charid",
+        targetCharacterID,
+        newSession
+    );
+
+    Log.Information($"/move: moved character {targetCharacterID} to station {stationID}");
+}
+
 
     private void CreateCmd (string [] argv, ServiceCall call)
     {

@@ -81,12 +81,14 @@ using EVESharp.Node.Services.Corporations;
 using EVESharp.Node.Services.Data;
 using EVESharp.Node.Services.Dogma;
 using EVESharp.Node.Services.Inventory;
+using EVESharp.Node.Services.Insurance;
 using EVESharp.Node.Services.Market;
 using EVESharp.Node.Services.Navigation;
 using EVESharp.Node.Services.Network;
 using EVESharp.Node.Services.Stations;
 using EVESharp.Node.Services.Tutorial;
 using EVESharp.Node.Services.War;
+using EVESharp.Node.Services.Graphics;
 using EVESharp.Node.SimpleInject;
 using Serilog;
 using Serilog.Core;
@@ -99,6 +101,7 @@ using ItemDB = EVESharp.Database.Old.ItemDB;
 using MachoNet = EVESharp.Node.Server.Single.MachoNet;
 using MessageQueue = EVESharp.Node.Server.Single.Messages.MessageQueue;
 using SessionManager = EVESharp.Node.Sessions.SessionManager;
+
 
 namespace EVESharp.Node;
 
@@ -208,6 +211,8 @@ internal class Program
         container.RegisterInstance (configuration.FileLog);
         container.RegisterInstance (configuration.Logging);
         container.RegisterInstance (configuration.Character);
+        container.Register<beyonce>(Lifestyle.Singleton);
+
         
         // register logging system
         container.RegisterInstance (baseLogger);
@@ -317,6 +322,8 @@ internal class Program
         container.Register <IClusterManager, ClusterManager> (Lifestyle.Singleton);
         container.Register <ITransportManager, TransportManager> (Lifestyle.Singleton);
         container.Register <EffectsManager> (Lifestyle.Singleton);
+        container.Register<inventoryInsurancesSvc>(Lifestyle.Singleton);
+
         
         // depending on the server mode initialize a different macho instance
         switch (configuration.MachoNet.Mode)

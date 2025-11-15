@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "EVESharp.ASP.Common": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:52689;http://localhost:52690"
+    }
+  }
+}

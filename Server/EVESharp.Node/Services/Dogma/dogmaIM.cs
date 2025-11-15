@@ -70,17 +70,14 @@ public class dogmaIM : ClientBoundService
         if (shipID is null)
             throw new CustomError ("The character is not aboard any ship");
 
-        // TODO: RE-EVALUATE WHERE THE SHIP LOADING IS PERFORMED, SHIPGETINFO DOESN'T LOOK LIKE A GOOD PLACE TO DO IT
         Ship ship = this.Items.LoadItem <Ship> ((int) shipID);
 
         if (ship is null)
             throw new CustomError ($"Cannot get information for ship {call.Session.ShipID}");
 
-        // ensure the player can use this ship
         ship.EnsureOwnership (callerCharacterID, call.Session.CorporationID, call.Session.CorporationRole, true);
 
         ItemInfo itemInfo = new ItemInfo ();
-
         itemInfo.AddRow (ship.ID, ship.GetEntityRow (), ship.GetEffects (), ship.Attributes, DateTime.UtcNow.ToFileTime ());
 
         foreach ((int _, ItemEntity item) in ship.Items)
@@ -103,14 +100,12 @@ public class dogmaIM : ClientBoundService
     public PyDataType CharGetInfo (ServiceCall call)
     {
         int callerCharacterID = call.Session.CharacterID;
-
         Character character = this.Items.GetItem <Character> (callerCharacterID);
 
         if (character is null)
             throw new CustomError ($"Cannot get information for character {callerCharacterID}");
 
         ItemInfo itemInfo = new ItemInfo ();
-
         itemInfo.AddRow (character.ID, character.GetEntityRow (), character.GetEffects (), character.Attributes, DateTime.UtcNow.ToFileTime ());
 
         foreach ((int _, ItemEntity item) in character.Items)
@@ -136,7 +131,6 @@ public class dogmaIM : ClientBoundService
     public PyDataType ItemGetInfo (ServiceCall call, PyInteger itemID)
     {
         int callerCharacterID = call.Session.CharacterID;
-
         ItemEntity item = this.Items.LoadItem (itemID);
 
         if (item.ID != callerCharacterID && item.OwnerID != callerCharacterID && item.OwnerID != call.Session.CorporationID)
@@ -164,16 +158,12 @@ public class dogmaIM : ClientBoundService
 
     public PyDataType GetWeaponBankInfoForShip (ServiceCall call)
     {
-        // this function seems to indicate the client when modules are grouped
-        // so it can display them on the UI and I guess act on them too
-        // for now there's no support for this functionality, so it can be stubbed out
         return new PyDictionary ();
     }
 
     public PyDataType GetCharacterBaseAttributes (ServiceCall call)
     {
         int callerCharacterID = call.Session.CharacterID;
-
         Character character = this.Items.GetItem <Character> (callerCharacterID);
 
         if (character is null)
@@ -207,8 +197,6 @@ public class dogmaIM : ClientBoundService
         if (item.Attributes.AttributeExists (attributeID) == false)
             throw new CustomError ("The given attribute doesn't exists in the item");
 
-        // we don't know the actual values of the returned function
-        // but it should be enough to fill the required data by the client
         return new PyList <PyString> (5)
         {
             [0] = null,
@@ -222,20 +210,34 @@ public class dogmaIM : ClientBoundService
     public PyDataType Activate (ServiceCall call, PyInteger itemID, PyString effectName, PyDataType target, PyDataType repeat)
     {
         ShipModule module = this.Items.GetItem <ShipModule> (itemID);
-
         EffectsManager.GetForItem (module, call.Session).ApplyEffect (effectName, call.Session);
-
         return null;
     }
 
     public PyDataType Deactivate (ServiceCall call, PyInteger itemID, PyString effectName)
     {
         ShipModule module = this.Items.GetItem <ShipModule> (itemID);
-
         EffectsManager.GetForItem (module, call.Session).StopApplyingEffect (effectName, call.Session);
-
         return null;
     }
+
+    // === NEW STUBS ADDED BELOW ===
+
+    public PyDataType CheckSendLocationInfo(ServiceCall call)
+    {
+        Console.WriteLine("[dogmaIM] CheckSendLocationInfo called");
+        // Client expects a response but doesn't need data yet
+        return null;
+    }
+
+    public PyDataType GetTargets(ServiceCall call)
+    {
+        Console.WriteLine("[dogmaIM] GetTargets called");
+        // Return empty list; client interprets this as "no current targets"
+        return new PyList();
+    }
+
+    // === EXISTING OVERRIDES BELOW ===
 
     protected override long MachoResolveObject (ServiceCall call, ServiceBindParams parameters)
     {
@@ -254,15 +256,11 @@ public class dogmaIM : ClientBoundService
         if (this.MachoResolveObject (call, bindParams) != BoundServiceManager.MachoNet.NodeID)
             throw new CustomError ("Trying to bind an object that does not belong to us!");
 
-        // make sure the character is loaded
         Character character = this.Items.LoadItem <Character> (characterID);
 
-        // depending on the type of binding we're doing it means the player might be entering a station
         if (bindParams.ExtraValue == (int) GroupID.Station && call.Session.StationID == bindParams.ObjectID)
         {
             this.Items.GetStaticStation (bindParams.ObjectID).Guests [characterID] = character;
-
-            // notify all station guests
             Notifications.NotifyStation (bindParams.ObjectID, new OnCharNowInStation (call.Session));
         }
 
@@ -273,21 +271,25 @@ public class dogmaIM : ClientBoundService
     {
         int characterID = Session.CharacterID;
 
-        // notify station about the player disconnecting from the object
         if (Session.StationID == ObjectID)
         {
-            // remove the character from the list
             this.Items.GetStaticStation (ObjectID).Guests.Remove (characterID);
-
-            // notify all station guests
             Notifications.NotifyStation (ObjectID, new OnCharNoLongerInStation (Session));
-
-            // check if the character is loaded or their ship is loaded and unload it
-            // TODO: THIS MIGHT REQUIRE CHANGES WHEN DESTINY WORK IS STARTED
             this.Items.UnloadItem (characterID);
-
             if (Session.ShipID is not null)
                 this.Items.UnloadItem ((int) Session.ShipID);
         }
     }
+
+    // in EVESharp.Node.Services.Dogma.dogmaIM
+
+public PyDataType GetTargeters(ServiceCall call)
+{
+    Console.WriteLine("[dogmaIM] GetTargeters called (stubbed, returning empty list)");
+
+    // In real EVE this would return who is targeting you.
+    // For now, we just hand the client an empty list so it shuts up.
+    return new PyList();
+}
+
 }

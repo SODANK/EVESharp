@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.IO;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
@@ -13,6 +14,7 @@ using EVESharp.EVE.Data.Inventory;
 using EVESharp.EVE.Exceptions.marketProxy;
 using EVESharp.Types;
 using EVESharp.Types.Collections;
+
 
 namespace EVESharp.Database.Old;
 
@@ -309,7 +311,8 @@ public class MarketDB : DatabaseAccessor
     {
         DbDataReader reader = this.Database.Select (
             dbLock,
-            "SELECT orderID, typeID, charID, mktOrders.stationID AS locationID, price, mktOrders.accountID, volRemaining, minVolume, `range`, jumps, escrow, issued, chrInformation.corporationID, isCorp FROM mktOrders LEFT JOIN chrInformation ON charID = characterID LEFT JOIN staStations ON staStations.stationID = mktOrders.stationID LEFT JOIN mapPrecalculatedSolarSystemJumps ON staStations.solarSystemID = fromSolarSystemID AND toSolarsystemID = @solarSystemID WHERE bid = @transactionType AND price >= @price AND typeID = @typeID AND charID != @characterID AND `range` >= jumps ORDER BY price",
+           "SELECT orderID, typeID, charID, mktOrders.stationID AS locationID, price, mktOrders.accountID, volRemaining, minVolume, `range`, jumps, escrow, issued, chrInformation.corporationID, isCorp FROM mktOrders LEFT JOIN chrInformation ON charID = characterID LEFT JOIN staStations ON staStations.stationID = mktOrders.stationID LEFT JOIN mapPrecalculatedSolarSystemJumps ON staStations.solarSystemID = fromSolarSystemID AND toSolarsystemID = @solarSystemID WHERE bid = @transactionType AND typeID = @typeID AND ((bid = 0 AND price <= @price) OR (bid = 1 AND price >= @price))",
+
             new Dictionary <string, object>
             {
                 {"@transactionType", type},
@@ -323,6 +326,9 @@ public class MarketDB : DatabaseAccessor
         using (reader)
         {
             List <MarketOrder> orders = new List <MarketOrder> ();
+
+             LogToFile("MARKET_DEBUG: FindMatchingOrders called with parameters:");
+             LogToFile($"   Price: {price}, TypeID: {typeID}, CharacterID: {characterID}, SolarSystemID: {solarSystemID}, TransactionType: {type}");
 
             while (reader.Read ())
                 // build the MarketOrder object
@@ -345,7 +351,7 @@ public class MarketDB : DatabaseAccessor
                         reader.GetBoolean (13)
                     )
                 );
-
+          LogToFile($"MARKET_DEBUG: Found {orders.Count} matching orders.");
             return orders.ToArray ();
         }
     }
@@ -570,12 +576,18 @@ public class MarketDB : DatabaseAccessor
         );
     }
 
+
+
+
     public void PlaceBuyOrder
     (
         DbLock dbLock, int typeID,    int characterID, int  corporationID, int  stationID, int range, double price,
         int           volEntered, int minVolume, int accountID,   long duration,      bool isCorp
     )
     {
+
+       File.AppendAllText("debug_market_log.txt", $"[DEBUG] BuyOrder → price: {price}, volEntered: {volEntered}, escrow: {price * volEntered}\n");
+
         this.Database.Query (
             dbLock,
             "INSERT INTO mktOrders(typeID, charID, corpID, stationID, `range`, bid, price, volEntered, volRemaining, issued, minVolume, accountID, duration, isCorp, escrow)VALUES(@typeID, @characterID, @corporationID, @stationID, @range, @sell, @price, @volEntered, @volRemaining, @issued, @minVolume, @accountID, @duration, @isCorp, @escrow)",
@@ -683,4 +695,14 @@ public class MarketDB : DatabaseAccessor
         public double Damage           { get; set; }
         public int    LocationID       { get; set; }
     }
+
+    private void LogToFile(string message)
+{
+    string path = "debug_market_log.txt"; // You can set a full path if needed
+    using (StreamWriter writer = new StreamWriter(path, true))
+    {
+        writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+    }
+}
+
 }

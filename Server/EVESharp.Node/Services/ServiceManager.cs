@@ -40,6 +40,7 @@ using EVESharp.Node.Services.Corporations;
 using EVESharp.Node.Services.Data;
 using EVESharp.Node.Services.Dogma;
 using EVESharp.Node.Services.Inventory;
+using EVESharp.Node.Services.Insurance;
 using EVESharp.Node.Services.Market;
 using EVESharp.Node.Services.Navigation;
 using EVESharp.Node.Services.Network;
@@ -47,7 +48,9 @@ using EVESharp.Node.Services.Stations;
 using EVESharp.Node.Services.Tutorial;
 using EVESharp.Node.Services.War;
 using EVESharp.Types;
+using EVESharp.Node.Services.Graphics;
 using Serilog;
+
 
 namespace EVESharp.Node.Services;
 
@@ -92,6 +95,7 @@ public class ServiceManager : IServiceManager <string>
     public  LPSvc            LPSvc            { get; }
     public  lookupSvc        lookupSvc        { get; }
     public  insuranceSvc     insuranceSvc     { get; }
+    public inventoryInsurancesSvc inventoryInsurancesSvc { get; }
     public  slash            slash            { get; }
     public  ship             ship             { get; }
     public  corpmgr          corpmgr          { get; }
@@ -101,6 +105,13 @@ public class ServiceManager : IServiceManager <string>
     public  factory          factory          { get; }
     public  petitioner       petitioner       { get; }
     public  allianceRegistry allianceRegistry { get; }
+    public  beyonce          beyonce          { get; }
+
+
+
+
+
+
 
     /// <summary>
     /// Constructor created mainly for testing, should not be used anywhere else
@@ -146,6 +157,7 @@ public class ServiceManager : IServiceManager <string>
         LPSvc            LPSvc,
         lookupSvc        lookupSvc,
         insuranceSvc     insuranceSvc,
+        inventoryInsurancesSvc   inventoryInsurancesSvc,
         slash            slash,
         ship             ship,
         corpmgr          corpmgr,
@@ -154,7 +166,9 @@ public class ServiceManager : IServiceManager <string>
         ramProxy         ramProxy,
         factory          factory,
         petitioner       petitioner,
-        allianceRegistry allianceRegistry
+        allianceRegistry allianceRegistry,
+        beyonce          beyonce
+
     )
     {
         CacheStorage = storage;
@@ -198,6 +212,7 @@ public class ServiceManager : IServiceManager <string>
         this.LPSvc            = LPSvc;
         this.lookupSvc        = lookupSvc;
         this.insuranceSvc     = insuranceSvc;
+        this.inventoryInsurancesSvc = inventoryInsurancesSvc;
         this.slash            = slash;
         this.ship             = ship;
         this.corpmgr          = corpmgr;
@@ -207,6 +222,8 @@ public class ServiceManager : IServiceManager <string>
         this.factory          = factory;
         this.petitioner       = petitioner;
         this.allianceRegistry = allianceRegistry;
+        this.beyonce          = beyonce;
+
     }
 
     public PyDataType ServiceCall (string service, string method, ServiceCall call)

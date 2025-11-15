@@ -2,41 +2,49 @@
 using EVESharp.EVE.Data.Inventory;
 using EVESharp.EVE.Network.Caching;
 using EVESharp.EVE.Network.Services;
+using EVESharp.EVE.Network.Services.Validators;
 using EVESharp.EVE.Packets.Complex;
 using EVESharp.Node.Cache;
 using EVESharp.Types;
 
-namespace EVESharp.Node.Services.Stations;
-
-public class stationSvc : Service
+namespace EVESharp.Node.Services.Stations
 {
-    public override AccessLevel   AccessLevel  => AccessLevel.None;
-    private         IItems        Items        { get; }
-    private         ICacheStorage CacheStorage { get; }
+    public class stationSvc : Service
 
-    public stationSvc (IItems items, ICacheStorage cacheStorage)
     {
-        this.Items   = items;
-        CacheStorage = cacheStorage;
-    }
+        public override AccessLevel AccessLevel => AccessLevel.Station;
+        private IItems Items { get; }
+        private ICacheStorage CacheStorage { get; }
 
-    public PyDataType GetStation (ServiceCall call, PyInteger stationID)
-    {
-        // generate cache for this call, why is this being called for every item in the assets window
-        // when a list is expanded?!
+        public stationSvc(IItems items, ICacheStorage cacheStorage)
+           
+        {
+            this.Items = items;
+            this.CacheStorage = cacheStorage;
+        }
 
-        if (CacheStorage.Exists ("stationSvc", $"GetStation_{stationID}") == false)
-            CacheStorage.StoreCall (
-                "stationSvc", $"GetStation_{stationID}",
-                this.Items.Stations [stationID].GetStationInfo (),
-                DateTime.UtcNow.ToFileTimeUtc ()
-            );
+        public PyDataType GetStation(ServiceCall call, PyInteger stationID)
+        {
+            if (CacheStorage.Exists("stationSvc", $"GetStation_{stationID}") == false)
+                CacheStorage.StoreCall(
+                    "stationSvc", $"GetStation_{stationID}",
+                    this.Items.Stations[stationID].GetStationInfo(),
+                    DateTime.UtcNow.ToFileTimeUtc()
+                );
 
-        return CachedMethodCallResult.FromCacheHint (CacheStorage.GetHint ("stationSvc", $"GetStation_{stationID}"));
-    }
+            return CachedMethodCallResult.FromCacheHint(CacheStorage.GetHint("stationSvc", $"GetStation_{stationID}"));
+        }
 
-    public PyDataType GetSolarSystem (ServiceCall call, PyInteger solarSystemID)
-    {
-        return this.Items.SolarSystems [solarSystemID].GetSolarSystemInfo ();
+        public PyDataType GetSolarSystem(ServiceCall call, PyInteger solarSystemID)
+        {
+            return this.Items.SolarSystems[solarSystemID].GetSolarSystemInfo();
+        }
+
+        [MustBeInStation]
+        public PyString Undock(ServiceCall call)
+        {
+            Console.WriteLine($"[stationSvc] Undock called for characterID={call.Session.CharacterID} at stationID={call.Session.StationID}");
+            return new PyString("Undock acknowledged (stub)");
+        }
     }
 }
